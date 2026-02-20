@@ -1,31 +1,36 @@
 import { RequestHandler } from "express";
 import { ICreateIssue, issueService, IUpdateIssue } from "../services/issues.service";
-import { IssueStatusEnum } from "../models/issues.models";
+import { StatusHistory } from "../models/statusHistory.model";
+import { Issue } from "../models/issue.models";
+
 class IssuesController {
-  create: RequestHandler = (req, res) => {
-    const { title, description } = req.body as Partial<ICreateIssue>;
-    if (!title || !description || !title.trim() || !description.trim()) {
+
+  create: RequestHandler = async (req, res) => {
+    const { title, description, user_id } = req.body as ICreateIssue;
+
+    if (!title || !description || !user_id || !title.trim() || !description.trim()) {
       return res.status(400).json({
-        error: "Title and description are required",
+        error: "Title, description and user_id are required",
       });
     }
 
-    const issue = issueService.create({ title, description });
+    const issue = await issueService.create({ title, description, user_id });
     return res.status(201).json(issue);
   };
 
-  getAll: RequestHandler = (_req, res) => {
-    res.json(issueService.getAll());
+  getAll: RequestHandler = async (_req, res) => {
+    const issues = await issueService.getAll();
+    return res.json(issues);
   };
 
-  getById: RequestHandler = (req, res) => {
+  getById: RequestHandler = async (req, res) => {
     const id = Number(req.params.id);
 
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid issue id" });
     }
 
-    const issue = issueService.getById(id);
+    const issue = await issueService.getById(id);
 
     if (!issue) {
       return res.status(404).json({ error: "Issue not found" });
@@ -34,48 +39,65 @@ class IssuesController {
     return res.json(issue);
   };
 
-
-  update: RequestHandler = (req, res) => {
+  update: RequestHandler = async (req, res) => {
     const id = Number(req.params.id);
+
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid issue id" });
     }
 
-    const data = req.body as IUpdateIssue;
+    const { title, description, status } = req.body;
 
-    if (!data.title && !data.description && !data.status) {
-      return res.status(400).json({ error: "Nothing to update" });
-    }
-
-    const allowedStatus = ["OPEN", "IN_PROGRESS", "CLOSED"] as const;
-
-    if (data.status && !allowedStatus.includes(data.status)) {
-      return res.status(400).json({ error: "Invalid status value" });
-    }
-
-    const issue = issueService.update(id, data);
+    const issue = await Issue.findByPk(id);
 
     if (!issue) {
-      return res.status(404).json({ error: "Issue not found" });
+      return res.status(404).json({ message: "Issue not found" });
     }
 
-    return res.status(200).json(issue);
+    const old_status = issue.status;
+    const newData: IUpdateIssue = {}
+
+    console.log({ title, status, description })
+    if (title !== undefined) newData.title = title;
+    if (description !== undefined) newData.description = description;
+    if (status !== undefined) newData.status = status;
+    const issueData = issue.toJSON();
+    await Issue.update(newData, { where: { id: id } });
+
+    if (status !== undefined && old_status !== status) {
+
+      await StatusHistory.create({
+        issue_id: id,
+        user_id: issueData.user_id,
+        old_status,
+        new_status: status,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Issue updated successfully",
+      data: issue,
+    });
+
   };
 
-  delete: RequestHandler = (req, res) => {
+  delete: RequestHandler = async (req, res) => {
     const id = Number(req.params.id);
+
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid issue id" });
     }
 
-    const deleted = issueService.delete(id);
+    const deleted = await issueService.delete(id);
 
     if (!deleted) {
       return res.status(404).json({ error: "Issue not found" });
     }
+
     return res.status(200).json({
       message: "Issue deleted successfully",
-      issue: deleted
+      issue: deleted,
     });
   };
 }

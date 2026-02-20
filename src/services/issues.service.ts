@@ -1,69 +1,56 @@
-import { Issue, IssueStatusEnum } from "../models/issues.models";
-let issues: Issue[] = [];
-let currentId = 1;
+import { Issue, IssueStatusEnum } from "../models/issue.models";
 
 class IssueService {
-    create(data: ICreateIssue): Issue {
-        const issue: Issue = {
-            id: currentId++,
-            title: data.title,
-            description: data.description,
-            status: data.status || IssueStatusEnum.OPEN,
-            createdAt: new Date().toISOString(),
-        };
-        issues.push(issue);
-        return issue;
-    }
 
-    getAll(): Issue[] {
-        return issues;
-    }
-    getById(id: number): Issue | undefined {
-        return issues.find(issue => issue.id === id);
-    }
+  async create(data: ICreateIssue) {
+    return Issue.create({
+      title: data.title,
+      description: data.description,
+      status: data.status ?? IssueStatusEnum.OPEN,
+      user_id: data.user_id,
+    });
+  }
 
-    update(id: number, data: IUpdateIssue): Issue | null {
-        const issue = issues.find(i => i.id === id);
-        if (!issue) return null;
+  async getAll() {
+    return Issue.findAll();
+  }
 
+  async getById(id: number) {
+    return Issue.findByPk(id);
+  }
 
-        if (data.title !== undefined) {
-            issue.title = data.title;
-        }
+  async update(id: number, data: any) {
+    const issue = await Issue.findByPk(id);
 
-        if (data.description !== undefined) {
-            issue.description = data.description;
-        }
+    if (!issue) return null;
+    await issue.update({
+      title: data.title,
+      description: data.description,
+      status: data.status,
+    });
+    return issue;
+  }
 
-        if (data.status !== undefined) {
-            issue.status = data.status;
-        }
-        return issue;
-    }
-
-    delete(id: number): boolean {
-        const lengthBefore = issues.length;
-
-        issues = issues.filter(i => i.id !== id);
-
-        return issues.length !== lengthBefore;
-    }
-
+  async delete(id: number) {
+    const deletedCount = await Issue.destroy({
+      where: { id },
+    });
+    return deletedCount > 0;
+  }
 }
 
 export const issueService = new IssueService();
 
-
-
-
 export interface ICreateIssue {
-    title: string;
-    description?: string;
-    status?: IssueStatusEnum;
+  title: string;
+  description: string;
+  status?: IssueStatusEnum;
+  user_id: string;
 }
 
 export interface IUpdateIssue {
-    title?: string;
-    description?: string;
-    status?: IssueStatusEnum;
+  title?: string;
+  description?: string;
+  status?: IssueStatusEnum;
+  user_id?: string;
 }
